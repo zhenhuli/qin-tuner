@@ -8,6 +8,7 @@
     "playwright.config.*"
 , "../vite.config.ts"  ],
   "compilerOptions": {
+    "allowJs": true,
     "composite": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
