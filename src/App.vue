@@ -9,7 +9,6 @@
     </div>
     <div class="info">
       <div style="font-size: 24px;">
-        {{ noteData.octave }}
         <span style="margin-right: 0.5em; font-weight: 500;">{{ noteData.name }}</span>
         <span>{{ noteData.frequency }}</span>
         <span v-if="!noteData.name && !noteData.frequency">--</span>
