@@ -11,7 +11,6 @@
       <div style="font-size: 24px;">
         <span style="margin-right: 0.5em; font-weight: 500;">{{ noteData.name }}</span>
         <span>{{ noteData.frequency }}</span>
-        <sub v-if="noteData.frequency">hz</sub>
         <span v-if="!noteData.name && !noteData.frequency">--</span>
       </div>
     </div>
@@ -19,7 +18,6 @@
       <div v-for="item in qinNotes" :key="item.name" class="qin-item" :class="{ 'qin-active': item.name === noteData.name && item.octave === noteData.octave }">
         <span style="margin-right: 0.5em; font-weight: 500;">{{ item.title }}</span>
         <span>{{ getQinFrequency(item.name, item.octave) }}</span>
-        <sub>hz</sub>
       </div>
     </div>
   </div>
@@ -28,13 +26,14 @@
 <script setup>
   import { onMounted, reactive } from 'vue'
 
-  import PitchFinder from 'pitchfinder'
-
   import { use } from 'echarts/core';
   import { CanvasRenderer } from 'echarts/renderers';
   import { GridComponent } from 'echarts/components';
   import { GaugeChart } from 'echarts/charts';
   import VChart from 'vue-echarts';
+
+  import correlationWorkerConstructor from './correlationWorker.js?worker';
+  const correlationWorker = new correlationWorkerConstructor();
 
   use([
     GridComponent,
@@ -201,10 +200,6 @@
         const source = context.createMediaStreamSource(stream)
         const processor = context.createScriptProcessor()
 
-        const detectPitch = PitchFinder.AMDF({
-          sampleRate: context.sampleRate,
-        });
-
         source.connect(processor)
         processor.connect(context.destination)
 
@@ -216,26 +211,30 @@
           buffer = concatenate(Float32Array, buffer, e.inputBuffer.getChannelData(0));
           if (buffer.length > context.sampleRate * sampleLengthMilliseconds / 1000) {
             recording = false;
-            const frequency = detectPitch(buffer);
-            if (frequency) {
-              const data = getNoteInfo(frequency);
-              Object.keys(noteData).forEach(key => {
-                noteData[key] = data[key];
-              })
-              option.series[0].data[0].value = data.standardFrequency - data.frequency || 0;
-            }
+            correlationWorker.postMessage({ buffer, sampleRate: context.sampleRate });
             buffer = new Float32Array();
             setTimeout(() => { recording = true; }, 250);
           }
         }
       })
-      .catch(e => {
+      .catch(() => {
         alert('麦克风授权失败');
       })
   }
 
   onMounted(() => {
     start();
+
+    correlationWorker.addEventListener('message', e => {
+      const { frequency } = e.data;
+      if (frequency) {
+        const data = getNoteInfo(frequency);
+        Object.keys(noteData).forEach(key => {
+          noteData[key] = data[key];
+        })
+        option.series[0].data[0].value = data.standardFrequency - data.frequency || 0;
+      }
+    });
   });
 </script>
 
